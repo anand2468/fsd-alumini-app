@@ -5,41 +5,12 @@ import { Edit, Trash2, Plus, User, LogOut, Briefcase, GraduationCap, Mail, Phone
 const deepCopy = <T,>(obj: T): T => JSON.parse(JSON.stringify(obj));
 
 // Types
-type Education = {
-  id: string;
-  institution: string;
-  degree: string;
-  fieldOfStudy: string;
-  startYear: string;
-  endYear: string;
-};
-
-type WorkExperience = {
-  id: string;
-  company: string;
-  position: string;
-  startDate: string;
-  endDate: string;
-  description: string;
-};
-
-type Profile = {
-  bio: string;
-  email: string;
-  phone: string;
-  location: string;
-  skills: string[];
-  education: Education[];
-  workExperience: WorkExperience[];
-  profileImage?: string;
-};
-
 type User = {
   id: string;
   email: string;
   displayName: string;
   password: string;
-  profile: Profile;
+  profileImage?: string;
 };
 
 type Post = {
@@ -57,34 +28,17 @@ let usersDatabase: User[] = [
     email: 'test@example.com',
     displayName: 'Test User',
     password: 'password123',
-    profile: {
-      bio: 'Alumni passionate about technology and education',
-      email: 'test@example.com',
-      phone: '+1 (555) 123-4567',
-      location: 'San Francisco, CA',
-      skills: ['React', 'Node.js', 'TypeScript', 'UI/UX'],
-      education: [
-        {
-          id: 'edu-1',
-          institution: 'Stanford University',
-          degree: 'Master of Science',
-          fieldOfStudy: 'Computer Science',
-          startYear: '2015',
-          endYear: '2017'
-        }
-      ],
-      workExperience: [
-        {
-          id: 'work-1',
-          company: 'Tech Corp',
-          position: 'Senior Software Engineer',
-          startDate: '2019',
-          endDate: 'Present',
-          description: 'Leading frontend development team'
-        }
-      ],
-      profileImage: 'https://randomuser.me/api/portraits/men/1.jpg'
-    }
+    profileImage: 'https://randomuser.me/api/portraits/men/1.jpg'
+  }
+];
+
+let postsDatabase: Post[] = [
+  {
+    id: '1',
+    title: 'Welcome to Alumni Connect',
+    content: 'This is a sample post to get started. Share your experiences!',
+    author: usersDatabase[0],
+    createdAt: new Date('2023-01-15')
   }
 ];
 
@@ -108,7 +62,7 @@ const authService = {
     });
   },
 
-  signUp: async (userData: Omit<User, 'id' | 'profile'> & { profileImage?: string }): Promise<User> => {
+  signUp: async (userData: Omit<User, 'id'>): Promise<User> => {
     return new Promise((resolve, reject) => {
       setTimeout(() => {
         if (usersDatabase.some(u => u.email === userData.email)) {
@@ -118,17 +72,7 @@ const authService = {
 
         const newUser: User = {
           id: `user-${Date.now()}`,
-          ...userData,
-          profile: {
-            bio: '',
-            email: userData.email,
-            phone: '',
-            location: '',
-            skills: [],
-            education: [],
-            workExperience: [],
-            profileImage: userData.profileImage || 'https://randomuser.me/api/portraits/lego/1.jpg'
-          }
+          ...userData
         };
 
         usersDatabase.push(deepCopy(newUser));
@@ -156,14 +100,14 @@ const authService = {
 };
 
 export default function AlumniConnect() {
+  const [user, setUser] = useState<User | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
+  const [postForm, setPostForm] = useState({
     title: '',
-    content: '',
+    content: ''
   });
-  const [user, setUser] = useState<User | null>(null);
   const [loginForm, setLoginForm] = useState({
     email: '',
     password: ''
@@ -177,53 +121,24 @@ export default function AlumniConnect() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'feed' | 'profile' | 'search'>('feed');
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [profileForm, setProfileForm] = useState<Profile>({
-    bio: '',
-    email: '',
-    phone: '',
-    location: '',
-    skills: [],
-    education: [],
-    workExperience: []
-  });
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
-  const [viewingProfile, setViewingProfile] = useState<User | null>(null);
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
 
   useEffect(() => {
-    const unsubscribe = authService.onAuthStateChanged((user) => {
-      setUser(user ? deepCopy(user) : null);
-      if (user) {
-        setProfileForm(deepCopy(user.profile));
-        loadSamplePosts(deepCopy(user));
+    const unsubscribe = authService.onAuthStateChanged((currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        setPosts(postsDatabase.filter(post => 
+          post.author.id === currentUser.id || 
+          usersDatabase.some(u => u.id === post.author.id)
+        ));
       } else {
         setPosts([]);
       }
     });
     return () => unsubscribe();
   }, []);
-
-  const loadSamplePosts = (currentUser: User) => {
-    const samplePosts: Post[] = [
-      {
-        id: '1',
-        title: 'My First Alumni Experience',
-        content: 'Attending the university was a transformative experience that shaped my career and personal growth.',
-        author: deepCopy(currentUser),
-        createdAt: new Date('2023-01-15')
-      },
-      {
-        id: '2',
-        title: 'Career Advice for New Grads',
-        content: 'Network early and often - many of my best opportunities came from alumni connections I made during school.',
-        author: deepCopy(usersDatabase[0]),
-        createdAt: new Date('2023-02-20')
-      }
-    ];
-    setPosts(samplePosts);
-  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -251,7 +166,7 @@ export default function AlumniConnect() {
         email: registerForm.email,
         displayName: registerForm.displayName,
         password: registerForm.password,
-        profileImage: registerForm.profileImage
+        profileImage: registerForm.profileImage || undefined
       });
     } catch (error) {
       alert('Registration failed: ' + (error as Error).message);
@@ -273,85 +188,48 @@ export default function AlumniConnect() {
 
   const handleCreatePost = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !formData.title || !formData.content) return;
+    if (!user || !postForm.title || !postForm.content) return;
     
     const newPost: Post = {
       id: Date.now().toString(),
-      title: formData.title,
-      content: formData.content,
+      title: postForm.title,
+      content: postForm.content,
       author: deepCopy(user),
       createdAt: new Date()
     };
     
-    setPosts(prevPosts => [newPost, ...prevPosts]);
-    setFormData({ title: '', content: '' });
+    postsDatabase = [newPost, ...postsDatabase];
+    setPosts([newPost, ...posts]);
+    setPostForm({ title: '', content: '' });
     setIsCreating(false);
   };
 
   const handleUpdatePost = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingPostId || !formData.title || !formData.content) return;
+    if (!editingPostId || !postForm.title || !postForm.content) return;
     
-    setPosts(prevPosts => 
-      prevPosts.map(post => 
-        post.id === editingPostId 
-          ? { 
-              ...deepCopy(post), 
-              title: formData.title, 
-              content: formData.content 
-            } 
-          : deepCopy(post)
-      )
+    postsDatabase = postsDatabase.map(post => 
+      post.id === editingPostId 
+        ? { ...post, title: postForm.title, content: postForm.content }
+        : post
     );
     
-    setFormData({ title: '', content: '' });
+    setPosts(posts.map(post => 
+      post.id === editingPostId 
+        ? { ...post, title: postForm.title, content: postForm.content }
+        : post
+    ));
+    
+    setPostForm({ title: '', content: '' });
     setEditingPostId(null);
     setIsCreating(false);
   };
 
   const handleDeletePost = (postId: string) => {
     if (window.confirm('Are you sure you want to delete this post?')) {
-      setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
+      postsDatabase = postsDatabase.filter(post => post.id !== postId);
+      setPosts(posts.filter(post => post.id !== postId));
     }
-  };
-
-  const handleViewProfile = (user: User) => {
-    setViewingProfile(deepCopy(user));
-    setActiveTab('profile');
-  };
-
-  const handleBackToFeed = () => {
-    setViewingProfile(null);
-    setActiveTab('feed');
-  };
-
-  const handleUpdateProfile = () => {
-    if (!user) return;
-    
-    const updatedUser = {
-      ...deepCopy(user),
-      profile: deepCopy(profileForm)
-    };
-    
-    // Update in our in-memory database
-    usersDatabase = usersDatabase.map(u => 
-      u.id === user.id ? deepCopy(updatedUser) : u
-    );
-    
-    setUser(updatedUser);
-    setIsEditingProfile(false);
-    
-    // Update posts where this user is the author
-    setPosts(prevPosts => 
-      prevPosts.map(post => 
-        post.author.id === user.id
-          ? {
-              ...deepCopy(post),
-              author: deepCopy(updatedUser)
-            }
-          : deepCopy(post)
-      )
-    );
   };
 
   const formatDate = (date: Date) => {
@@ -527,12 +405,258 @@ export default function AlumniConnect() {
     );
   }
 
-  // ... [Rest of the component remains the same as in the previous implementation]
-  // The main app UI after login is identical to the previous version
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header and main app content */}
-      {/* ... */}
+      <header className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
+          <h1 className="text-xl font-bold text-gray-900">Alumni Connect</h1>
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={handleLogout}
+              className="flex items-center text-sm font-medium text-gray-700 hover:text-gray-900"
+            >
+              <LogOut className="h-5 w-5 mr-1" />
+              Sign Out
+            </button>
+            <div className="flex items-center">
+              <img 
+                src={user.profileImage || 'https://randomuser.me/api/portraits/lego/1.jpg'} 
+                alt="Profile" 
+                className="h-8 w-8 rounded-full"
+              />
+              <span className="ml-2 text-sm font-medium">{user.displayName}</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+        <div className="flex mb-6 border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('feed')}
+            className={`py-2 px-4 font-medium text-sm ${activeTab === 'feed' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            Feed
+          </button>
+          <button
+            onClick={() => setActiveTab('profile')}
+            className={`py-2 px-4 font-medium text-sm ${activeTab === 'profile' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            Profile
+          </button>
+          <button
+            onClick={() => setActiveTab('search')}
+            className={`py-2 px-4 font-medium text-sm ${activeTab === 'search' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            Search
+          </button>
+        </div>
+
+        {activeTab === 'feed' && (
+          <div>
+            <button
+              onClick={() => {
+                setIsCreating(true);
+                setEditingPostId(null);
+                setPostForm({ title: '', content: '' });
+              }}
+              className="mb-4 flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              Create Post
+            </button>
+
+            {isCreating && (
+              <div className="bg-white shadow rounded-lg p-6 mb-6">
+                <h2 className="text-lg font-medium mb-4">{editingPostId ? 'Edit Post' : 'Create Post'}</h2>
+                <form onSubmit={editingPostId ? handleUpdatePost : handleCreatePost}>
+                  <div className="mb-4">
+                    <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
+                      Title
+                    </label>
+                    <input
+                      id="title"
+                      name="title"
+                      type="text"
+                      value={postForm.title}
+                      onChange={(e) => setPostForm({...postForm, title: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    />
+                  </div>
+                  <div className="mb-4">
+                    <label htmlFor="content" className="block text-sm font-medium text-gray-700 mb-1">
+                      Content
+                    </label>
+                    <textarea
+                      id="content"
+                      name="content"
+                      rows={4}
+                      value={postForm.content}
+                      onChange={(e) => setPostForm({...postForm, content: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    />
+                  </div>
+                  <div className="flex justify-end space-x-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsCreating(false)}
+                      className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      {editingPostId ? 'Update Post' : 'Create Post'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            <div className="space-y-6">
+              {posts.length === 0 ? (
+                <div className="bg-white shadow rounded-lg p-6 text-center">
+                  <p className="text-gray-500">No posts yet. Be the first to share your experience!</p>
+                </div>
+              ) : (
+                posts.map(post => (
+                  <div key={post.id} className="bg-white shadow rounded-lg overflow-hidden">
+                    <div className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center">
+                          <img 
+                            src={post.author.profileImage || 'https://randomuser.me/api/portraits/lego/1.jpg'} 
+                            alt={post.author.displayName} 
+                            className="h-10 w-10 rounded-full"
+                          />
+                          <div className="ml-3">
+                            <h3 className="text-sm font-medium text-gray-900">{post.author.displayName}</h3>
+                            <p className="text-sm text-gray-500">
+                              {formatDate(post.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+                        {post.author.id === user.id && (
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => {
+                                setEditingPostId(post.id);
+                                setPostForm({
+                                  title: post.title,
+                                  content: post.content
+                                });
+                                setIsCreating(true);
+                              }}
+                              className="text-gray-400 hover:text-gray-500"
+                            >
+                              <Edit className="h-5 w-5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeletePost(post.id)}
+                              className="text-gray-400 hover:text-gray-500"
+                            >
+                              <Trash2 className="h-5 w-5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-4">
+                        <h2 className="text-lg font-semibold text-gray-900">{post.title}</h2>
+                        <p className="mt-2 text-gray-600 whitespace-pre-line">{post.content}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'profile' && (
+          <div className="bg-white shadow rounded-lg overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-medium text-gray-900">Your Profile</h2>
+            </div>
+            <div className="px-6 py-4">
+              <div className="flex items-center mb-6">
+                <img 
+                  src={user.profileImage || 'https://randomuser.me/api/portraits/lego/1.jpg'} 
+                  alt="Profile" 
+                  className="h-16 w-16 rounded-full"
+                />
+                <div className="ml-4">
+                  <h3 className="text-lg font-medium text-gray-900">
+                    {user.displayName}
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    {user.email}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'search' && (
+          <div className="bg-white shadow rounded-lg overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-medium text-gray-900">Search Alumni</h2>
+              <div className="mt-2 relative rounded-md shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    if (e.target.value.trim() === '') {
+                      setSearchResults([]);
+                    } else {
+                      const results = usersDatabase.filter(user => 
+                        user.displayName.toLowerCase().includes(e.target.value.toLowerCase()) ||
+                        user.email.toLowerCase().includes(e.target.value.toLowerCase())
+                      );
+                      setSearchResults(results);
+                    }
+                  }}
+                  placeholder="Search by name or email..."
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                />
+              </div>
+            </div>
+            <div className="divide-y divide-gray-200">
+              {searchResults.length > 0 ? (
+                searchResults.map((result) => (
+                  <div key={result.id} className="px-6 py-4 hover:bg-gray-50">
+                    <div className="flex items-center">
+                      <img 
+                        src={result.profileImage || 'https://randomuser.me/api/portraits/lego/1.jpg'} 
+                        alt={result.displayName} 
+                        className="h-10 w-10 rounded-full"
+                      />
+                      <div className="ml-4">
+                        <h3 className="text-sm font-medium text-gray-900">{result.displayName}</h3>
+                        <p className="text-sm text-gray-500">{result.email}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="px-6 py-4 text-center">
+                  <p className="text-gray-500">
+                    {searchQuery ? 'No results found' : 'Enter a search term to find alumni'}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </main>
     </div>
   );
 }
